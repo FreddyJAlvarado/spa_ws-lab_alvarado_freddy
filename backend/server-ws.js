@@ -50,9 +50,6 @@ wss.on('connection', (ws, req) => {
   // Enviar métricas actuales al nuevo cliente
   broadcastMetrics();
 
-  // send welcome
-  ws.send(JSON.stringify({ type: 'system', payload: { message: 'Bienvenido al WS de prueba' } }));
-
   ws.on('message', (raw) => {
     // Intentar parsear como JSON primero
     let isJSON = false;

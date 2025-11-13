@@ -1,0 +1,190 @@
+<div class="app-container">
+  <!-- Toolbar superior -->
+  <mat-toolbar color="primary" class="toolbar">
+    <mat-icon class="toolbar-icon">cloud_sync</mat-icon>
+    <span class="toolbar-title">WebSocket Chat & Transfer</span>
+    <span class="spacer"></span>
+    
+    <!-- Métricas en tiempo real -->
+    <div class="metrics-chips">
+      <mat-chip class="metric-chip">
+        <mat-icon>people</mat-icon>
+        {{ metrics.clientsConnected }} Conectados
+      </mat-chip>
+      <mat-chip class="metric-chip">
+        <mat-icon>message</mat-icon>
+        {{ metrics.totalMessages }} Mensajes
+      </mat-chip>
+      <mat-chip class="metric-chip disconnected-chip">
+        <mat-icon>person_off</mat-icon>
+        {{ metrics.totalDisconnected }} Desconectados
+      </mat-chip>
+    </div>
+    
+    <mat-chip-set class="status-chip-set">
+      <mat-chip [highlighted]="connected" [class.connected]="connected" [class.disconnected]="!connected">
+        <mat-icon>{{ connected ? 'wifi' : 'wifi_off' }}</mat-icon>
+        {{ connected ? 'Conectado' : 'Desconectado' }}
+      </mat-chip>
+    </mat-chip-set>
+  </mat-toolbar>
+
+  <div class="content-container">
+    <!-- Grid de 2 columnas -->
+    <div class="grid-container">
+      
+      <!-- Columna izquierda: Envío -->
+      <div class="left-column">
+        
+        <!-- Card de mensaje de texto -->
+        <mat-card class="card">
+          <mat-card-header>
+            <div mat-card-avatar class="card-icon">
+              <mat-icon>chat</mat-icon>
+            </div>
+            <mat-card-title>Enviar Mensaje</mat-card-title>
+            <mat-card-subtitle>Envía un mensaje de texto a todos los conectados</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Escribe tu mensaje</mat-label>
+              <input matInput [(ngModel)]="outMsg" placeholder="Hola mundo..." 
+                     (keyup.enter)="send()" [disabled]="!connected">
+              <mat-icon matSuffix>message</mat-icon>
+            </mat-form-field>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <button mat-raised-button color="primary" (click)="send()" 
+                    [disabled]="!outMsg || !connected">
+              <mat-icon>send</mat-icon>
+              Enviar
+            </button>
+          </mat-card-actions>
+        </mat-card>
+
+        <!-- Card de archivo -->
+        <mat-card class="card">
+          <mat-card-header>
+            <div mat-card-avatar class="card-icon file-icon">
+              <mat-icon>attach_file</mat-icon>
+            </div>
+            <mat-card-title>Enviar Archivo</mat-card-title>
+            <mat-card-subtitle>Comparte archivos en tiempo real</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="file-upload-area" (click)="fileInput.click()" 
+                 [class.file-selected]="selectedFile">
+              <input #fileInput type="file" (change)="onFileSelected($event)" hidden>
+              
+              <div class="upload-placeholder" *ngIf="!selectedFile">
+                <mat-icon class="upload-icon">cloud_upload</mat-icon>
+                <p class="upload-text">Click para seleccionar archivo</p>
+                <p class="upload-subtext">o arrastra y suelta aquí</p>
+              </div>
+
+              <div class="file-info" *ngIf="selectedFile">
+                <mat-icon class="file-icon-large">{{ getFileIcon(selectedFile.name) }}</mat-icon>
+                <div class="file-details">
+                  <p class="file-name">{{ selectedFile.name }}</p>
+                  <p class="file-size">{{ formatBytes(selectedFile.size) }}</p>
+                </div>
+                <button mat-icon-button (click)="clearFile($event)">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            </div>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <button mat-raised-button color="accent" (click)="sendFile()" 
+                    [disabled]="!selectedFile || !connected || uploading">
+              <mat-icon *ngIf="!uploading">upload</mat-icon>
+              <mat-spinner *ngIf="uploading" diameter="20"></mat-spinner>
+              {{ uploading ? 'Enviando...' : 'Enviar Archivo' }}
+            </button>
+          </mat-card-actions>
+        </mat-card>
+
+        <!-- Botón de desconectar -->
+        <button mat-raised-button color="warn" (click)="disconnect()" 
+                [disabled]="!connected" class="disconnect-btn">
+          <mat-icon>power_settings_new</mat-icon>
+          Desconectar
+        </button>
+
+      </div>
+
+      <!-- Columna derecha: Recepción -->
+      <div class="right-column">
+        
+        <!-- Card de mensajes -->
+        <mat-card class="card messages-card">
+          <mat-card-header>
+            <div mat-card-avatar class="card-icon">
+              <mat-icon>forum</mat-icon>
+            </div>
+            <mat-card-title>
+              Mensajes Recibidos
+              <mat-chip *ngIf="messages.length > 0" class="count-badge">{{ messages.length }}</mat-chip>
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="messages-container">
+              <mat-list *ngIf="messages.length > 0">
+                <mat-list-item *ngFor="let m of messages; let i = index">
+                  <mat-icon matListItemIcon>chat_bubble</mat-icon>
+                  <div matListItemTitle>{{ m.type || 'Mensaje' }}</div>
+                  <div matListItemLine class="message-content">{{ m.payload | json }}</div>
+                </mat-list-item>
+              </mat-list>
+              <div class="empty-state" *ngIf="messages.length === 0">
+                <mat-icon>inbox</mat-icon>
+                <p>No hay mensajes aún</p>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Card de archivos -->
+        <mat-card class="card files-card">
+          <mat-card-header>
+            <div mat-card-avatar class="card-icon success-icon">
+              <mat-icon>folder</mat-icon>
+            </div>
+            <mat-card-title>
+              Archivos Recibidos
+              <mat-chip *ngIf="receivedFiles.length > 0" class="count-badge success">{{ receivedFiles.length }}</mat-chip>
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="files-container">
+              <div *ngIf="receivedFiles.length > 0" class="files-list">
+                <div *ngFor="let f of receivedFiles" class="file-item-custom">
+                  <div class="file-item-content">
+                    <mat-icon class="file-type-icon">{{ getFileIcon(f.filename) }}</mat-icon>
+                    <div class="file-item-info">
+                      <div class="file-title">{{ f.filename }}</div>
+                      <div class="file-meta-line">
+                        <span class="file-meta">{{ formatBytes(f.size) }}</span>
+                        <span class="file-meta-separator">•</span>
+                        <span class="file-meta">{{ getTimeAgo(f.timestamp) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button mat-mini-fab color="primary" (click)="downloadFile(f)" 
+                          class="download-btn" title="Descargar archivo">
+                    <mat-icon>download</mat-icon>
+                  </button>
+                </div>
+              </div>
+              <div class="empty-state" *ngIf="receivedFiles.length === 0">
+                <mat-icon>cloud_download</mat-icon>
+                <p>No se han recibido archivos</p>
+              </div>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+    </div>
+  </div>
+</div>
